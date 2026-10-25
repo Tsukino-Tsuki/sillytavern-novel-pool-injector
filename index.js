@@ -1,3 +1,7 @@
+import { REMOTE_DEFAULTS } from './remote-api.js';
+import { createRemoteMode } from './remote-mode.js';
+import { is_group_generating } from '../../../group-chats.js';
+
 /*
  * 小说章节自动注入器
  * Novel Chapter Injector
@@ -21,11 +25,13 @@
   'use strict';
 
   const MODULE_NAME = 'novel-chapter-injector';
-  // 酒馆 Git 导入时，扩展目录名 = 仓库名。此值必须与实际安装目录一致，否则模板读不到。
-  const EXTENSION_FOLDER_NAME = 'sillytavern-novel-chapter-injector';
+  // 从安装位置推导模板目录，支持二次开发仓库改名。
+  const EXTENSION_FOLDER = decodeURIComponent(new URL('.', import.meta.url).pathname.split('/scripts/extensions/')[1]).replace(/\/$/, '');
+  let remoteMode = null;
 
   // —— 默认设置 ——
   const DEFAULT_SETTINGS = Object.freeze({
+    ...REMOTE_DEFAULTS,
     // 分割模式：'chapter' 按章节切，'char' 按字数切
     splitMode: 'char',
     // 字数分割模式下每段多少字
@@ -144,6 +150,7 @@
   // 对账：重启后若正文变量丢失，用当前进度补写，保证 {{getvar::}} 与进度对齐。
   // 只在变量为空时才补写，避免覆盖掉正常落盘的内容。
   async function reconcileVariable() {
+    if (getSettings().sourceMode === 'remote') return;
     if (!state.chapters.length) return;
     try {
       const vars = getChatVariables();
@@ -332,6 +339,7 @@
 
   // —— 文件导入（支持自动嗅探 GBK / UTF-8）——
   function importFile(file) {
+    renderStatus('正在读取并导入小说…');
     const reader = new FileReader();
     reader.onload = async () => {
       const buffer = reader.result;
@@ -401,6 +409,7 @@
         return false;
       }
       vars[getSettings().variableName] = content;
+      window.SillyTavern.getContext().chatMetadata.nciActiveSource = 'local';
       if (typeof saveMetadata === 'function') await saveMetadata();
       return true;
     } catch (e) {
@@ -422,6 +431,7 @@
 
   // —— 推进章节（支持批量：一次注入 N 章；支持循环：读完从头开始）——
   async function advanceChapter(options = {}) {
+    if (getSettings().sourceMode === 'remote') return remoteMode.refresh();
     if (!state.chapters.length) {
       renderStatus('尚未导入小说');
       return;
@@ -513,6 +523,7 @@
   }
 
   function renderChapterPreview() {
+    if (getSettings().sourceMode === 'remote') return remoteMode?.preview();
     const el = document.getElementById('nci-preview');
     if (!el) return;
     if (state.index >= state.chapters.length) {
@@ -570,6 +581,7 @@
 
   // —— 手动跳转：定位到第 N 段并注入，进度推进到 N+1 ——
   async function jumpToIndex(n) {
+    if (getSettings().sourceMode === 'remote') return;
     if (!state.chapters.length) {
       renderStatus('尚未导入小说');
       return;
@@ -591,7 +603,7 @@
     const settings = getSettings();
     // 模板是 Handlebars 语法（{{var}}），路径用扩展目录名。
     const html = await renderTemplate(
-      'third-party/' + EXTENSION_FOLDER_NAME,
+      EXTENSION_FOLDER,
       'settings',
       {
         variableName: settings.variableName,
@@ -619,10 +631,12 @@
     renderChapterPreview();
     renderToc();
     ensureManualInjectButton();
+    remoteMode.mount();
   }
 
   // —— 根据当前设置，动态显示/隐藏相关设置行 ——
   function updateSettingsVisibility() {
+    remoteMode?.updateVisibility();
     const mode = getSettings().splitMode || 'char';
     const sizeRow = document.getElementById('nci-row-splitsize');
     const sepRow = document.getElementById('nci-row-sep');
@@ -819,7 +833,7 @@
       injectButton.type = 'button';
       injectButton.id = 'nci-inject-btn';
       injectButton.className = 'menu_button nci-inject-btn';
-      injectButton.textContent = '📖 注入下一段';
+      injectButton.textContent = getSettings().sourceMode === 'remote' ? '获取新片段' : '注入下一段';
       injectButton.addEventListener('click', () => advanceChapter({ toast: true }));
     }
 
@@ -857,6 +871,7 @@
     }
     if (autoAdvanceHandler) return; // 防止重复绑定
     autoAdvanceHandler = () => {
+      if (getSettings().sourceMode === 'remote') return;
       // 手动注入模式下，自动推进失效
       if (getSettings().manualMode) return;
       if (getSettings().autoAdvance) advanceChapter();
@@ -874,13 +889,14 @@
   function unregisterAutoAdvance() {
     if (eventSource && autoAdvanceHandler) {
       const evt = eventTypes && (eventTypes.GENERATION_ENDED || eventTypes.MESSAGE_RECEIVED);
-      if (evt) eventSource.off(evt, autoAdvanceHandler);
+      if (evt) (eventSource.removeListener || eventSource.off).call(eventSource, evt, autoAdvanceHandler);
     }
     autoAdvanceHandler = null;
   }
 
   // —— 清理资源：事件监听 + 定时器 + 挂载的按钮 ——
   function cleanup() {
+    remoteMode?.dispose();
     unregisterAutoAdvance();
     if (injectButtonKeeper) {
       clearInterval(injectButtonKeeper);
@@ -918,6 +934,11 @@
       /* 保持为 null，面板降级到 body */
     }
 
+    remoteMode = createRemoteMode({
+      getSettings, persistSettings,
+      isGroupGenerating: () => is_group_generating,
+      onModeChange: () => { updateSettingsVisibility(); renderChapterPreview(); ensureManualInjectButton(); },
+    });
     const tryRender = () => {
       if (document.getElementById('extensions_settings')) {
         renderPanel();

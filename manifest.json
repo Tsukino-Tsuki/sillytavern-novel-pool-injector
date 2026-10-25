@@ -1,10 +1,10 @@
 {
-  "display_name": "小说章节自动注入器",
+  "display_name": "小说章节自动注入器 · 墨池适配版",
   "loading_order": 100,
   "js": "index.js",
   "css": "style.css",
-  "author": "菲林 (Feilin)",
-  "version": "0.2.0",
+  "author": "wwj",
+  "version": "0.3.0",
   "homePage": "",
   "auto_update": false,
   "minimum_client_version": "1.13.0"

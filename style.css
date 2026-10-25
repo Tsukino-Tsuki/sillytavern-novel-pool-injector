@@ -1,5 +1,10 @@
 /* 小说章节自动注入器 —— 面板样式 */
 
+#nci-drawer [hidden] { display: none !important; }
+.nci-remote-body { padding-top: 12px; }
+.nci-row input[type="url"], .nci-row input[type="password"] { flex: 1; min-width: 0; }
+#nci-drawer button:disabled { opacity: 0.5; cursor: wait; }
+
 .nci-intro {
   margin-bottom: 12px;
   padding: 10px 12px;

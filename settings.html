@@ -1,23 +1,61 @@
 <div class="inline-drawer" id="nci-drawer">
   <div class="inline-drawer-toggle inline-drawer-header">
-    <b>📖 小说章节自动注入器</b>
+    <b>小说章节自动注入器 · 墨池适配版</b>
     <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
   </div>
   <div class="inline-drawer-content">
 
     <div class="nci-intro">
-      把一篇 txt 小说按「章节」或「字数」自动切分，把当前段写入一个<b>聊天局部变量</b>，供预设里用 <code>{{getvar::变量名}}</code> 读取。
+      从本地 TXT 或远程小说池获取片段，写入<b>聊天局部变量</b>。预设继续用 <code>&#123;&#123;getvar::current_chapter&#125;&#125;</code> 读取。
+    </div>
+
+    <div class="nci-row">
+      <label for="nci-source">内容来源</label>
+      <select id="nci-source" class="text_pole">
+        <option value="local">本地 TXT</option>
+        <option value="remote">远程小说池</option>
+      </select>
+    </div>
+    <div class="nci-step" data-nci-remote hidden>
+      <div class="nci-step-body nci-remote-body">
+        <div class="nci-desc">在小说网站登录 Discord 并生成令牌链接，粘贴到下方即可。完整链接会自动填入服务地址和字数。</div>
+        <div class="nci-row">
+          <label for="nci-remote-token">令牌或完整链接</label>
+          <input id="nci-remote-token" type="password" class="text_pole" autocomplete="off" spellcheck="false" placeholder="粘贴令牌链接">
+        </div>
+        <label class="nci-toggle"><input id="nci-remote-show" type="checkbox">显示令牌</label>
+        <div class="nci-row">
+          <label for="nci-remote-base">服务地址</label>
+          <input id="nci-remote-base" type="url" class="text_pole" placeholder="https://你的服务域名" spellcheck="false">
+        </div>
+        <div class="nci-row">
+          <label for="nci-remote-chars">片段字数</label>
+          <input id="nci-remote-chars" type="number" class="text_pole" min="8000" max="32000" step="1">
+        </div>
+        <div class="nci-desc">范围 8000～32000 字，空格和换行不计数。每次随机选取一段连续原文。</div>
+        <div class="nci-row">
+          <label for="nci-remote-transport">读取方式</label>
+          <select id="nci-remote-transport" class="text_pole">
+            <option value="tavern">酒馆读取（推荐，无需配置）</option>
+            <option value="direct">浏览器直连（服务需支持跨域）</option>
+          </select>
+        </div>
+        <div class="nci-desc">默认方式通过酒馆已有接口访问公共域名，不需要修改系统或服务器配置。</div>
+        <button type="button" id="nci-remote-refresh" class="menu_button nci-btn-wide">获取并注入新片段</button>
+        <div class="nci-desc">失败后每隔 1 秒重试，最多重试 3 次；仍失败则提示并沿用本聊天的旧内容。</div>
+        <div id="nci-remote-status" class="nci-status" role="status" aria-live="polite">等待获取片段</div>
+      </div>
     </div>
 
     <!-- ① 导入 -->
-    <div class="nci-step">
+    <div class="nci-step" data-nci-local>
       <button type="button" class="nci-step-toggle" aria-expanded="true">
         <span class="nci-step-title">① 导入小说文件</span>
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
       </button>
       <div class="nci-step-body">
         <div class="nci-desc">选一个 .txt 文件，脚本会按下面的分割模式自动切成一段段。</div>
-        <button id="nci-import-btn" class="menu_button nci-btn-wide">📄 选择小说文件并导入</button>
+        <button id="nci-import-btn" class="menu_button nci-btn-wide">选择小说文件并导入</button>
         <input type="file" id="nci-file" class="nci-file-hidden" accept=".txt,.md,text/plain">
       </div>
     </div>
@@ -29,7 +67,7 @@
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
       </button>
       <div class="nci-step-body">
-        <div class="nci-desc">当前段内容会写入这个<b>聊天局部变量</b>（每张聊天独立）。之后在预设里写 <code>{{getvar::变量名}}</code> 就能读到。</div>
+        <div class="nci-desc">当前段内容会写入这个<b>聊天局部变量</b>（每张聊天独立）。之后在预设里写 <code>&#123;&#123;getvar::变量名&#125;&#125;</code> 就能读到。</div>
         <div class="nci-row">
           <label>章节变量名</label>
           <input type="text" id="nci-var" class="text_pole" value="{{variableName}}">
@@ -38,12 +76,12 @@
           <label>进度变量名</label>
           <input type="text" id="nci-idxvar" class="text_pole" value="{{indexVariableName}}">
         </div>
-        <div class="nci-desc nci-desc-tight">进度变量记录「读到第几段」，别跟章节变量名重名。</div>
+        <div class="nci-desc nci-desc-tight">本地模式记录读到第几段，远程模式记录本聊天成功获取次数。不能与正文变量重名。</div>
       </div>
     </div>
 
     <!-- ③ 分割设置 -->
-    <div class="nci-step">
+    <div class="nci-step" data-nci-local>
       <button type="button" class="nci-step-toggle" aria-expanded="true">
         <span class="nci-step-title">③ 分割设置</span>
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
@@ -81,9 +119,9 @@
       <div class="nci-step-body">
         <label class="nci-toggle">
           <input type="checkbox" id="nci-auto" {{#if autoAdvance}}checked{{/if}}>
-          <span>请求完成后自动推进</span>
+          <span id="nci-auto-label">请求完成后自动推进</span>
         </label>
-        <div class="nci-desc nci-desc-tight">生成结束后自动把下一段写入变量。</div>
+        <div id="nci-auto-description" class="nci-desc nci-desc-tight">生成结束后自动把下一段写入变量。</div>
         <div class="nci-hint" id="nci-auto-hint" style="display:none">手动注入模式已开启，自动推进暂时失效。</div>
 
         <label class="nci-toggle">
@@ -93,16 +131,16 @@
         <div class="nci-desc nci-desc-tight">开启后在输入框上方挂一个按钮，点一下注入下一段，不再随请求自动推进。</div>
         <div class="nci-hint" id="nci-manual-hint" style="display:none">自动推进已开启，手动注入按钮不会出现。</div>
 
-        <label class="nci-toggle">
+        <label class="nci-toggle" data-nci-local>
           <input type="checkbox" id="nci-loop" {{#if loopMode}}checked{{/if}}>
           <span>循环模式</span>
         </label>
-        <div class="nci-desc nci-desc-tight">读到最后一段后，下一次从头开始，而不是停下。</div>
+        <div class="nci-desc nci-desc-tight" data-nci-local>读到最后一段后，下一次从头开始，而不是停下。</div>
       </div>
     </div>
 
     <!-- ⑤ 跳转与目录 -->
-    <div class="nci-step">
+    <div class="nci-step" data-nci-local>
       <button type="button" class="nci-step-toggle" aria-expanded="true">
         <span class="nci-step-title">⑤ 跳转与目录</span>
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
@@ -129,12 +167,12 @@
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
       </button>
       <div class="nci-step-body">
-        <div class="nci-desc">导入后点一下，把第一段写入变量；之后按上面的推进模式继续。</div>
-        <button id="nci-next" class="menu_button nci-btn-wide">▶ 手动注入下一段</button>
+        <div class="nci-desc">本地模式注入下一段；远程模式立即获取并注入新片段。</div>
+        <button id="nci-next" class="menu_button nci-btn-wide">手动注入下一段</button>
       </div>
     </div>
 
-    <div class="nci-status" id="nci-status">未导入</div>
+    <div class="nci-status" id="nci-status" data-nci-local>未导入</div>
     <div class="nci-preview" id="nci-preview"></div>
 
   </div>
