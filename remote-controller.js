@@ -1,5 +1,6 @@
 // 作者：wwj
 import { fetchExcerpt } from './remote-api.js';
+import { getContentVariableNames, readContentVariable, validateContentVariables, writeContentVariables } from './content-variables.js';
 
 function chatIdentity(context) {
   const id = context.getCurrentChatId?.() ?? context.chatId;
@@ -24,15 +25,14 @@ export function createRemoteController({
     return {
       sourceMode: s.sourceMode, remoteBaseUrl: s.remoteBaseUrl, remoteToken: s.remoteToken,
       remoteChars: s.remoteChars, remoteTransport: s.remoteTransport,
-      variableName: s.variableName, indexVariableName: s.indexVariableName,
+      variableNames: getContentVariableNames(s), indexVariableName: s.indexVariableName,
     };
   };
 
   function currentText() {
     const ctx = getContext();
     if (!chatIdentity(ctx)) return '';
-    const value = ctx.chatMetadata.variables?.[getSettings().variableName];
-    return typeof value === 'string' ? value : '';
+    return readContentVariable(ctx.chatMetadata.variables, getSettings());
   }
 
   function refreshPreview() { preview(currentText()); }
@@ -49,9 +49,7 @@ export function createRemoteController({
       && sameChat(chat, chatIdentity(getContext()))
       && JSON.stringify(snapshot()) === JSON.stringify(settings);
     try {
-      if (!settings.variableName || settings.variableName === settings.indexVariableName) {
-        throw new Error('正文变量名不能为空，也不能与进度变量名相同');
-      }
+      validateContentVariables(settings);
       const context = getContext();
       const result = await request(settings, {
         signal: controller.signal,
@@ -63,7 +61,7 @@ export function createRemoteController({
       if (!valid()) return false;
       const ctx = getContext();
       const vars = ctx.chatMetadata.variables ??= {};
-      vars[settings.variableName] = result.text;
+      writeContentVariables(vars, settings, result.text);
       ctx.chatMetadata.nciActiveSource = 'remote';
       // 远程进度为本聊天成功获取次数，不使用本地章节索引。
       const previous = Number(ctx.chatMetadata.nciRemoteCount) || 0;

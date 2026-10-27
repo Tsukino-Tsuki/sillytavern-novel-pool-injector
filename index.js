@@ -1,5 +1,7 @@
 import { REMOTE_DEFAULTS } from './remote-api.js';
 import { createRemoteMode } from './remote-mode.js';
+import { migrateContentVariables, readContentVariable, fillMissingContentVariables, writeContentVariables } from './content-variables.js';
+import { mountVariableSettings } from './variable-settings.js';
 import { is_group_generating } from '../../../group-chats.js';
 
 /*
@@ -87,6 +89,7 @@ import { is_group_generating } from '../../../group-chats.js';
         extensionSettings[MODULE_NAME][key] = DEFAULT_SETTINGS[key];
       }
     }
+    if (migrateContentVariables(extensionSettings[MODULE_NAME])) persistSettings();
     return extensionSettings[MODULE_NAME];
   }
 
@@ -155,8 +158,11 @@ import { is_group_generating } from '../../../group-chats.js';
     try {
       const vars = getChatVariables();
       if (!vars) return;
-      const name = getSettings().variableName;
-      if (!name || vars[name]) return; // 变量还在则不动
+      const settings = getSettings();
+      if (readContentVariable(vars, settings)) {
+        if (fillMissingContentVariables(vars, settings)) await saveMetadata();
+        return;
+      }
       const idx = Math.min(Math.max(state.index, 0), state.chapters.length - 1);
       const content = state.chapters[idx] || '';
       if (!content) return;
@@ -408,7 +414,7 @@ import { is_group_generating } from '../../../group-chats.js';
         renderStatus('拿不到聊天元数据，写入失败');
         return false;
       }
-      vars[getSettings().variableName] = content;
+      writeContentVariables(vars, getSettings(), content);
       window.SillyTavern.getContext().chatMetadata.nciActiveSource = 'local';
       if (typeof saveMetadata === 'function') await saveMetadata();
       return true;
@@ -606,7 +612,6 @@ import { is_group_generating } from '../../../group-chats.js';
       EXTENSION_FOLDER,
       'settings',
       {
-        variableName: settings.variableName,
         splitMode: settings.splitMode,
         splitSize: settings.splitSize,
         chapterSeparator: settings.chapterSeparator,
@@ -621,6 +626,7 @@ import { is_group_generating } from '../../../group-chats.js';
     target.insertAdjacentHTML('beforeend', html);
 
     bindEvents();
+    mountVariableSettings({ getSettings, persistSettings, cancel: () => remoteMode.cancel(), onChange: renderChapterPreview });
     await loadChapters();
     updateSettingsVisibility();
     if (state.chapters.length) {
@@ -654,11 +660,9 @@ import { is_group_generating } from '../../../group-chats.js';
   function bindEvents() {
     const fileInput = document.getElementById('nci-file');
     const importBtn = document.getElementById('nci-import-btn');
-    const varInput = document.getElementById('nci-var');
     const splitModeSel = document.getElementById('nci-splitmode');
     const splitSizeInput = document.getElementById('nci-splitsize');
     const sepInput = document.getElementById('nci-sep');
-    const idxInput = document.getElementById('nci-idxvar');
     const batchInput = document.getElementById('nci-batch');
     const nextBtn = document.getElementById('nci-next');
     const autoCheck = document.getElementById('nci-auto');
@@ -677,12 +681,6 @@ import { is_group_generating } from '../../../group-chats.js';
         const f = e.target.files && e.target.files[0];
         if (f) importFile(f);
         e.target.value = '';
-      });
-    }
-    if (varInput) {
-      varInput.addEventListener('change', () => {
-        getSettings().variableName = varInput.value.trim() || 'current_chapter';
-        persistSettings();
       });
     }
     if (splitModeSel) {
@@ -726,12 +724,6 @@ import { is_group_generating } from '../../../group-chats.js';
     if (sepInput) {
       sepInput.addEventListener('change', () => {
         getSettings().chapterSeparator = sepInput.value || '第';
-        persistSettings();
-      });
-    }
-    if (idxInput) {
-      idxInput.addEventListener('change', () => {
-        getSettings().indexVariableName = idxInput.value.trim() || 'current_chapter_index';
         persistSettings();
       });
     }

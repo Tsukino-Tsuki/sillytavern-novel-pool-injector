@@ -1,4 +1,6 @@
 // 作者：wwj
+import { getContentVariableNames, readContentVariable, fillMissingContentVariables, writeContentVariables } from './content-variables.js';
+
 // 快照属于当前聊天；切换来源时恢复其上一次注入内容，不推进本地进度。
 export function switchContentSource(context, settings, nextMode) {
   if (!['local', 'remote'].includes(nextMode)) return false;
@@ -6,20 +8,24 @@ export function switchContentSource(context, settings, nextMode) {
   const metadata = context.chatMetadata;
   if (chatId != null && chatId !== '' && metadata) {
     const previousMode = metadata.nciActiveSource || (metadata.nciRemoteCount ? 'remote' : 'local');
-    if (previousMode === nextMode) { settings.sourceMode = nextMode; return false; }
     const vars = metadata.variables ??= {};
+    if (previousMode === nextMode) {
+      settings.sourceMode = nextMode;
+      return fillMissingContentVariables(vars, settings);
+    }
     const snapshots = metadata.nciContentSources ??= {};
-    const { variableName: name, indexVariableName: indexName } = settings;
+    const names = getContentVariableNames(settings);
+    const { indexVariableName: indexName } = settings;
     snapshots[previousMode] = {
-      name, indexName,
-      text: typeof vars[name] === 'string' ? vars[name] : null,
+      text: readContentVariable(vars, settings) || null,
       index: typeof vars[indexName] === 'string' ? vars[indexName] : null,
     };
     const next = snapshots[nextMode];
-    if (next?.name === name && next.text !== null) vars[name] = next.text;
-    else delete vars[name];
-    if (indexName && indexName !== name) {
-      if (next?.indexName === indexName && next.index !== null) vars[indexName] = next.index;
+    // 旧版快照的 name/indexName 不再限制恢复目标；正文始终属于此聊天及此来源。
+    if (typeof next?.text === 'string') writeContentVariables(vars, settings, next.text);
+    else for (const name of names) delete vars[name];
+    if (indexName && !names.includes(indexName)) {
+      if (typeof next?.index === 'string') vars[indexName] = next.index;
       else delete vars[indexName];
     }
     metadata.nciActiveSource = nextMode;

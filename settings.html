@@ -67,13 +67,12 @@
         <span class="nci-step-icon fa-solid fa-circle-chevron-down"></span>
       </button>
       <div class="nci-step-body">
-        <div class="nci-desc">当前段内容会写入这个<b>聊天局部变量</b>（每张聊天独立）。之后在预设里写 <code>&#123;&#123;getvar::变量名&#125;&#125;</code> 就能读到。</div>
+        <div class="nci-desc">每次获取一段小说，将<b>同一段正文</b>写入下方所有聊天局部变量（每张聊天独立）。默认 3 个，最多 5 个；在预设需要的位置使用对应的读取宏。</div>
+        <div id="nci-variables"></div>
+        <button type="button" id="nci-add-variable" class="menu_button nci-btn-wide">添加正文变量</button>
+        <div id="nci-variable-status" class="nci-desc" role="status" aria-live="polite"></div>
         <div class="nci-row">
-          <label>章节变量名</label>
-          <input type="text" id="nci-var" class="text_pole" value="{{variableName}}">
-        </div>
-        <div class="nci-row">
-          <label>进度变量名</label>
+          <label for="nci-idxvar">进度变量名</label>
           <input type="text" id="nci-idxvar" class="text_pole" value="{{indexVariableName}}">
         </div>
         <div class="nci-desc nci-desc-tight">本地模式记录读到第几段，远程模式记录本聊天成功获取次数。不能与正文变量重名。</div>

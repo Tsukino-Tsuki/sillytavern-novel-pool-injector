@@ -165,3 +165,53 @@ test('保存失败不重复请求，当前正文仍可用并明确提醒', async
   assert.equal(h.context.chatMetadata.variables.current_chapter, '新');
   assert.match(h.notices[0], /保存聊天失败/);
 });
+
+test('三个及五个变量只获取一次、统一写入且成功计数只加一次', async () => {
+  for (const count of [3, 5]) {
+    let calls = 0;
+    const h = harness(async () => { calls++; return { text: '同一片段', chars: 8000 }; });
+    h.settings.variableNames = ['current_chapter', ...Array.from({ length: count - 1 }, (_, i) => `novel_${i}`)];
+    await h.controller.refresh();
+    assert.equal(calls, 1);
+    assert.equal(h.saved, 1);
+    assert.equal(h.context.chatMetadata.nciRemoteCount, 1);
+    for (const name of h.settings.variableNames) assert.equal(h.context.chatMetadata.variables[name], '同一片段');
+  }
+});
+
+test('多变量请求失败保留全部原值，第一变量缺失时仍识别其他旧正文', async () => {
+  const h = harness(async () => { throw new Error('读取失败'); });
+  h.settings.variableNames = ['current_chapter', 'second', 'third', 'fourth', 'fifth'];
+  const vars = { second: '旧二', third: '旧三', fourth: '旧四', fifth: '旧五' };
+  h.context.chatMetadata.variables = { ...vars };
+  await h.controller.refresh();
+  assert.deepEqual(h.context.chatMetadata.variables, vars);
+  assert.equal(h.saved, 0);
+  assert.equal(h.previews.at(-1), '旧二');
+  assert.match(h.notices[0], /沿用/);
+});
+
+test('在途请求的第二变量改名或添加第五变量，旧响应不能写入任何目标', async () => {
+  for (const mutate of [(names) => { names[1] = 'renamed'; }, (names) => { names.push('fifth'); }]) {
+    const pending = deferred();
+    const h = harness(() => pending.promise);
+    h.settings.variableNames = ['current_chapter', 'second', 'third', 'fourth'];
+    const loading = h.controller.refresh();
+    mutate(h.settings.variableNames);
+    pending.resolve({ text: '过期', chars: 8000 });
+    await loading;
+    assert.deepEqual(h.context.chatMetadata.variables, { current_chapter: '旧片段' });
+    assert.equal(h.saved, 0);
+  }
+});
+
+test('任意正文变量与进度冲突或正文重名时不发出请求', async () => {
+  let calls = 0;
+  const h = harness(async () => { calls++; return { text: '新', chars: 8000 }; });
+  for (const names of [['current_chapter', 'second', 'current_chapter_index'], ['current_chapter', 'second', 'second']]) {
+    h.settings.variableNames = names;
+    await h.controller.refresh();
+    assert.equal(calls, 0);
+    assert.deepEqual(h.context.chatMetadata.variables, { current_chapter: '旧片段' });
+  }
+});
