@@ -9,7 +9,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function harness(request) {
+function harness(request, host = {}) {
   const settings = { ...REMOTE_DEFAULTS, sourceMode: 'remote', remoteToken: 'a'.repeat(43),
     variableName: 'current_chapter', indexVariableName: 'current_chapter_index', autoAdvance: true, manualMode: false };
   let saved = 0;
@@ -23,7 +23,7 @@ function harness(request) {
     getContext: () => context, getSettings: () => settings, request,
     status: (value) => statuses.push(value), preview: (value) => previews.push(value),
     busy: (value) => loading.push(value), notify: (value) => notices.push(value),
-    isGroupGenerating: () => groupGenerating,
+    isGroupGenerating: () => groupGenerating, host,
   });
   return { controller, settings, notices, statuses, previews, loading,
     get context() { return context; }, set context(value) { context = value; },
@@ -214,4 +214,12 @@ test('任意正文变量与进度冲突或正文重名时不发出请求', async
     assert.equal(calls, 0);
     assert.deepEqual(h.context.chatMetadata.variables, { current_chapter: '旧片段' });
   }
+});
+
+test('TauriTavern 请求自动改用直连，已保存的酒馆读取设置保持不变', async () => {
+  let received;
+  const h = harness(async (settings) => { received = settings; return { text: '新', chars: 8000 }; }, { __TAURI_RUNNING__: true });
+  await h.controller.refresh();
+  assert.equal(received.remoteTransport, 'direct');
+  assert.equal(h.settings.remoteTransport, 'tavern');
 });

@@ -1,5 +1,6 @@
 // 作者：wwj
 import { parseTokenInput, validateChars } from './remote-api.js';
+import { resolveRemoteSettings } from './host-compat.js';
 import { switchContentSource } from './source-state.js';
 
 export function createRemoteUi({ getSettings, persistSettings, controller, onModeChange, status }) {
@@ -33,7 +34,7 @@ export function createRemoteUi({ getSettings, persistSettings, controller, onMod
   }
 
   function populate() {
-    const s = getSettings();
+    const s = resolveRemoteSettings(getSettings());
     for (const [id, key] of [
       ['nci-source', 'sourceMode'], ['nci-remote-base', 'remoteBaseUrl'],
       ['nci-remote-token', 'remoteToken'], ['nci-remote-chars', 'remoteChars'],

@@ -13,6 +13,8 @@ export function mountVariableSettings({ getSettings, persistSettings, cancel, on
 
   async function commit(names, indexName) {
     const settings = getSettings();
+    const oldNames = getContentVariableNames(settings);
+    const oldIndexName = settings.indexVariableName;
     const next = { ...settings, variableNames: names, indexVariableName: indexName };
     try { validateContentVariables(next); }
     catch (error) { status.textContent = `${error.message}，已保留原设置`; render(); return; }
@@ -28,6 +30,9 @@ export function mountVariableSettings({ getSettings, persistSettings, cancel, on
     persistSettings();
     if (vars) {
       if (text) writeContentVariables(vars, settings, text);
+      for (const name of new Set([...oldNames, oldIndexName])) {
+        if (!names.includes(name) && name !== indexName) delete vars[name];
+      }
       if (typeof index === 'string') {
         Object.defineProperty(vars, indexName, { value: index, writable: true, enumerable: true, configurable: true });
       }

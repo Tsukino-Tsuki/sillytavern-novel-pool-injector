@@ -1,4 +1,5 @@
 // 作者：wwj
+import { resolveRemoteSettings } from './host-compat.js';
 import { fetchExcerpt } from './remote-api.js';
 import { getContentVariableNames, readContentVariable, validateContentVariables, writeContentVariables } from './content-variables.js';
 
@@ -16,12 +17,12 @@ function sameChat(a, b) {
 export function createRemoteController({
   getContext, getSettings, status, preview, busy, notify,
   request = fetchExcerpt, isGroupGenerating = () => true,
-  onChatChanged = () => {},
+  onChatChanged = () => {}, host = globalThis,
 }) {
   let active = null;
   const bindings = [];
   const snapshot = () => {
-    const s = getSettings();
+    const s = resolveRemoteSettings(getSettings(), host);
     return {
       sourceMode: s.sourceMode, remoteBaseUrl: s.remoteBaseUrl, remoteToken: s.remoteToken,
       remoteChars: s.remoteChars, remoteTransport: s.remoteTransport,

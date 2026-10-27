@@ -72,3 +72,15 @@ test('切到无片段的来源会清理所有目标，不把其他来源正文�
   switchContentSource(context, settings, 'remote');
   assert.deepEqual(context.chatMetadata.variables, {});
 });
+
+
+test('旧聊天没有来源标记时按当前设置来源初始化，不用历史远程计数误判', () => {
+  const settings = { variableNames: ['a', 'b', 'c'], indexVariableName: 'index', sourceMode: 'local' };
+  const context = { chatId: 'A', chatMetadata: {
+    nciRemoteCount: 2, variables: { a: '本地旧正文', b: '本地旧正文', c: '本地旧正文', index: '3' },
+  } };
+  switchContentSource(context, settings, 'remote');
+  assert.deepEqual(context.chatMetadata.variables, {});
+  assert.equal(context.chatMetadata.nciContentSources.local.text, '本地旧正文');
+  assert.equal(context.chatMetadata.nciActiveSource, 'remote');
+});

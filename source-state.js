@@ -7,7 +7,8 @@ export function switchContentSource(context, settings, nextMode) {
   const chatId = context.getCurrentChatId?.() ?? context.chatId;
   const metadata = context.chatMetadata;
   if (chatId != null && chatId !== '' && metadata) {
-    const previousMode = metadata.nciActiveSource || (metadata.nciRemoteCount ? 'remote' : 'local');
+    const previousMode = metadata.nciActiveSource
+      || (['local', 'remote'].includes(settings.sourceMode) ? settings.sourceMode : 'local');
     const vars = metadata.variables ??= {};
     if (previousMode === nextMode) {
       settings.sourceMode = nextMode;
